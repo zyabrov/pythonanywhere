@@ -61,6 +61,7 @@ def webhook():
     bot.set_webhook(url=webhook_url)
     return 'ok', 200
 
+# CHECKING GIT PULL
 
 """
 @app.route('/manychat/<method>', methods=['POST'])
