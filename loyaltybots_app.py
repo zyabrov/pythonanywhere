@@ -11,6 +11,7 @@ app = Flask(__name__)
 
 @app.route('/git')
 def git_request():
+    print ('got git request')
     if request.method == 'POST':
         repo = git.Repo('zyabrov/pythonanywhere')
         origin = repo.remotes.origin
