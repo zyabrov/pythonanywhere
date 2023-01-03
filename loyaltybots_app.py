@@ -3,6 +3,7 @@ import telebot
 from credentials import bot_token, webhook_url
 import time
 import git
+import functions
 
 TOKEN = bot_token
 bot = telebot.TeleBot(TOKEN, threaded=False)
@@ -61,9 +62,7 @@ def webhook():
     bot.set_webhook(url=webhook_url)
     return 'ok', 200
 
-# CHECKING GIT PULL
 
-"""
 @app.route('/manychat/<method>', methods=['POST'])
 def manychat(method):
     data = request.get_json()
@@ -82,6 +81,5 @@ def manychat(method):
         functions.get_tasks(subscriber_id,data)
     elif method == 'get_coupon':
          functions.get_coupon(subscriber_id, data)
-    return 'ok'
-    """
+    return 'ok', 200
 
