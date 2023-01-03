@@ -62,11 +62,6 @@ def webhook():
     return 'ok', 200
 
 
-
-
-
-
-
 """
 @app.route('/manychat/<method>', methods=['POST'])
 def manychat(method):
