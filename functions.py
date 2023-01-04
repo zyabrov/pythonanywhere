@@ -37,6 +37,35 @@ def auth_check(auth):
 def list_to_diclist(names, list_to_change):
     return dict(zip(names, list_to_change))
 
+
+def add_admin(admin_id, data):
+  fields_to_change = []
+  admin_data = db.get_admin('id', int(admin_id))
+  print("admin_data:", admin_data)
+  if admin_data is None:
+      id = int(admin_id)
+      name = str(data['name'])
+      tg_id = int(data['custom_fields']['telegram id'])
+      status = 'active'
+      manychat_api = 'API не встановлено'
+      start_date = str(data['last_seen'])
+      last_payment_date = str(data['last_seen'])#пізніше змінити
+      end_date = add_days(start_date, 30)
+      coupons = 'Не налаштовані'
+      coupons_activated = " "
+      points = 'Не налаштовані'
+      bot_token = 'Токен боту не встановлений'
+      values = [id, name, tg_id, status, manychat_api, start_date, last_payment_date, end_date, coupons, coupons_activated, points, bot_token]
+      print(values)
+      db.insert_raw_our_clients(values)
+      response_message = f'Додали нового адміна: {admin_id}'
+      status = 'ok'
+  else:
+      response_message = 'Адмін вже є в базі'
+      status = 'error'
+  return manychat_response(admin_id, status, fields_to_change, response_message)
+  
+
 def get_coupon(subscriber_id, data):
   fields_to_change = []
   points = data['custom_fields']['ПЛ - Всього балів']
