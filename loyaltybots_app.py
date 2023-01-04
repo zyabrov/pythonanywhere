@@ -22,13 +22,14 @@ def git_request():
     else:
         return 'Wrong event type', 400
 
-
+"""
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def echo_message(message):
     bot.reply_to(message, message.text)
+    """
 
 
-@bot.message_handler(commands=['start'])
+@bot.message_handler(commands=['start_admin'])
 def start(message):
     print("message:", message)
     bot.reply_to(message, 'Hello, ' + message.from_user.first_name)
