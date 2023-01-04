@@ -14,7 +14,7 @@ app = Flask(__name__)
 def git_request():
     print ('Got git request')
     if request.method == 'POST':
-        repo = git.Repo('zyabrov/pythonanywhere')
+        repo = git.Repo('./pythonanywhere')
         origin = repo.remotes.origin
         repo.create_head('master', origin.refs.master).set_tracking_branch(origin.refs.master).checkout()
         origin.pull()
@@ -41,11 +41,6 @@ def getMessage():
     print(json_string)
     update = telebot.types.Update.de_json(json_string)
     bot.process_new_updates([update])
-    # bot.remove_webhook()
-    print("got new webhook")
-    time.sleep(0.1)
-    # bot.set_webhook(url=webhook_url)
-    print("bot new updates")
     return "!", 200
 
 
