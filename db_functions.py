@@ -75,7 +75,6 @@ def show_all():
     return data
     
   
-  
 def get_raw(col_to_find,value):
     print("value to find:", value)
     con = sqlite3.connect(database)

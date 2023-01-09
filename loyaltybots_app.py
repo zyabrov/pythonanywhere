@@ -103,8 +103,8 @@ def main_nav(message, data, user):
         start(message, user)
     elif data == 'coupon_activate':
         coupon_activate(message, user)
-    elif data == 'settings':
-        settings_nav(message, data, user)
+    #elif data == 'settings':
+        #settings_nav(message, data, user)
 
 
 def manual_nav(message, data, admin):
@@ -290,9 +290,9 @@ def check_id(message, coupon):
     msg = messages.CouponActivateMessage(coupon)
     send(message.chat.id, msg.admin_message())
     # send message to client
-    send(coupon.client_id, msg.client_message_success())
+    send(coupon.client_id, msg.client_message_su8ccess())
 
-
+"""
 def settings_nav(data, admin):
     if data == 'change_coupons':
         coupons = admin.coupons_list()
@@ -312,12 +312,12 @@ def settings_nav(data, admin):
 
 def set_api(admin_id, data):
   manychat_api_new = "Bearer " + data['custom_fields']['manychat_api']
-  db.set_api(manychat_api_new, int(admin_id))
+  config.db.set_api(manychat_api_new, int(admin_id))
   fields_to_change = functions.add_field_to_change('manychat_api', manychat_api_new)
   response_message = 'Manychat Api змінено'
   return functions.manychat_response(admin_id, 'ok', fields_to_change, response_message)
 
-
+"""
 def send(user_id, msg):
     bot.send_message(user_id, msg.text, reply_markup=msg.markup, parse_mode='html', disable_notification=False)
 
@@ -347,25 +347,27 @@ def webhook():
     return 'ok', 200
 
 
-@app.route('/manychat/<method>', methods=['POST'])
-def manychat(method):
-    data = request.get_json()
-    subscriber_id = data['id']
-    if method == 'cabinet':
-        # Кількість отриманих бонусів
-        # Діючі купони (для особистого кабінету)
-        # Всього балів
-        # Кількість отриманих бонусів
-        functions.cabinet(subscriber_id, data)
-    elif method == 'get_tasks':
-        # Доступні завдання (кількість)
-        # Доступне завдання 1
-        # Доступне завдання 2
-        # Доступне завдання 3
-        functions.get_tasks(subscriber_id,data)
-    elif method == 'get_coupon':
-         functions.get_coupon(subscriber_id, data)
-    elif method == 'add_admin':
-        function.add_admin(subscriber_id, data)
-    return 'ok', 200
+@app.route('/manychat/<manychat_token>/<method>', methods=['POST'])
+def manychat(manychat_token, method):
+    bot_admin_data = db.get_admin('manychat_api', manychat_token)
+    if bot_admin_data is not None:
+        bot_admin_id = bot_admin_data['id']
+        admin = Admin(bot_admin_id)
+        admin.get_admin_data
+        data = request.get_json()
+        subscriber_id = data['id']
+        user = User(subscriber_id)
+        if method == 'cabinet':
+            functions.cabinet(user, data, admin)
+        elif method == 'get_tasks':
+            # Доступні завдання (кількість)
+            # Доступне завдання 1
+            # Доступне завдання 2
+            # Доступне завдання 3
+            functions.get_tasks(subscriber_id,data)
+        elif method == 'get_coupon':
+            functions.get_coupon(subscriber_id, data)
+        elif method == 'add_admin':
+            function.add_admin(subscriber_id, data)
+        return 'ok', 200
 
