@@ -6,8 +6,8 @@ import db_functions
 
 
 class User:
-    def __init__(self):
-        self.user_id = None
+    def __init__(self, id):
+        self.user_id = id
         self.name = None
         self.telegram_username = None
         self.user_data = None
@@ -80,8 +80,8 @@ class SuperAdmin:
 
 
 class Admin(User):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, id):
+        super().__init__(id)
         self.template_installed = None
         self.bot_token = None
         self.activated_coupons = None
@@ -162,8 +162,8 @@ class Admin(User):
 
 
 class Product(Admin):
-    def __init__(self, product_id):
-        super().__init__()
+    def __init__(self, id, product_id):
+        super().__init__(id)
         self.product_id = product_id
         self.product_data = None
         self.product_name = None
@@ -183,9 +183,8 @@ class Product(Admin):
         return query.data
 
 
-class AdminBonus(Admin):
+class AdminBonus:
     def __init__(self):
-        super().__init__()
         self.bonus_id = None
         self.bonus_name = None
         self.bonus_points = None
@@ -229,9 +228,8 @@ class BonusStories(AdminBonus):
         self.bonus_points = self.points_stories
 
 
-class Coupon(Admin):
+class Coupon:
     def __init__(self):
-        super().__init__()
         self.coupon_id = None
         self.admin_coupon_data = None
         self.coupon_data = None
@@ -282,9 +280,8 @@ class Coupon(Admin):
         }
 
 
-class Coupons(Admin):
+class Coupons:
     def __init__(self, user_id):
-        super().__init__(user_id)
         self.coupons_list_string = None
         self.coupons_list = None
 
@@ -313,22 +310,14 @@ class Coupons(Admin):
             return self.coupons_list_dic
 
 
-class AdminBot(Admin):
-    def __init__(self, user_id):
-        super().__init__(user_id)
+class AdminBot:
+    def __init__(self):
+        super().__init__()
+        self.bot_mainadmin = None
         self.bot_username= None
         self.bot_url = None
         self.bot_token = None
         self.bot_botfather_message = None
-
-
-class Manychat(Admin):
-    def __init__(self, api):
-        super().__init__()
-        self.manychat_api = api
-
-    def get(self):
-        pass
 
 
 class AdminsList:

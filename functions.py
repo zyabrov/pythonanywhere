@@ -5,6 +5,7 @@ import requests
 from random import randint
 import config
 import db_functions as db
+from users import User, Admin
 
 def add_days(start_date, time_delta):
   start_date = datetime.fromisoformat(start_date)
@@ -110,29 +111,29 @@ def get_coupon(subscriber_id, data):
   return r  
 
 
-def cabinet(subscriber_id, data):
+def user_cabinet(user, manychat_data, admin):
+      # Встановити нові значення:
+        # Кількість отриманих бонусів
+        # Діючі купони (для особистого кабінету)
+        # Всього балів
+        # Кількість отриманих бонусів
   fields_to_change = []
-  coupons_quantity = 3
-  діючі_купони = None
-  for i in range(coupons_quantity):
+  coupons = admin.coupons
+  if coupons is not None:
+    coupons_active_string = None
+    for coupon in coupons:
+      i += 1
       name = f'Діючий купон {i+1}'
-      coupon = data['custom_fields'][name]
-      if coupon != None:
-          current_time = data['last_seen']
-          end_time = data['custom_fields'][name + ' (дата до)']
-          if current_time < end_time:
-              if діючі_купони == None:
-                  діючі_купони = coupon
-              else:
-                  діючі_купони = діючі_купони + "\n" + coupon
+      current_time = manychat_data['last_seen']
+      end_time = manychat_data['custom_fields'][name + ' (дата до)']
+      if current_time < end_time:
+          if coupons_active_string == None:
+              coupons_active_string = coupon
           else:
-              pass
-      else: 
-          pass
-  if діючі_купони == None:
-      fields_to_change = add_field_to_change('Діючі купони (для особистого кабінету)', "➖")
-  else:
-      fields_to_change = add_field_to_change('Діючі купони (для особистого кабінету)', діючі_купони)  
+              coupons_active_string = coupons_active_string + "\n" + coupon
+    fields_to_change = add_field_to_change('Діючі купони (для особистого кабінету)', coupons_active_string)  
+  else: 
+      fields_to_change = add_field_to_change('Діючі купони (для особистого кабінету)', "➖")     
   r = manychat_setvalues(subscriber_id, fields_to_change)
   return r   
 
