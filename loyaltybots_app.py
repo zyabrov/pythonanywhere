@@ -1,22 +1,23 @@
-from flask import Flask, request
+from flask import Flask
 import telebot
 from credentials import bot_token, webhook_url
 import time
-import git
 import functions
 import bot_functions
 import users
-from users import User, Admin, AdminsList
+from users import User, Subscriber, Admin, AdminsList, Manychat
 import messages
 import config
+import db_functions
 
 
 TOKEN = bot_token
 bot = telebot.TeleBot(TOKEN, threaded=False)
+manychat = Manychat()
 
 app = Flask(__name__)
 
-
+"""
 @app.route('/git')
 def git_request():
     print ('Got git request')
@@ -29,11 +30,12 @@ def git_request():
     else:
         return 'Wrong event type', 400
 
-"""
+
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def echo_message(message):
     bot.reply_to(message, message.text)
-    """
+    
+"""
 
 
 @bot.message_handler(commands=['start_admin'])
@@ -349,25 +351,21 @@ def webhook():
 
 @app.route('/manychat/<manychat_token>/<method>', methods=['POST'])
 def manychat(manychat_token, method):
-    bot_admin_data = db.get_admin('manychat_api', manychat_token)
-    if bot_admin_data is not None:
-        bot_admin_id = bot_admin_data['id']
-        admin = Admin(bot_admin_id)
-        admin.get_admin_data
-        data = request.get_json()
-        subscriber_id = data['id']
-        user = User(subscriber_id)
-        if method == 'cabinet':
-            functions.cabinet(user, data, admin)
-        elif method == 'get_tasks':
-            # Доступні завдання (кількість)
-            # Доступне завдання 1
-            # Доступне завдання 2
-            # Доступне завдання 3
-            functions.get_tasks(subscriber_id,data)
-        elif method == 'get_coupon':
-            functions.get_coupon(subscriber_id, data)
-        elif method == 'add_admin':
-            function.add_admin(subscriber_id, data)
-        return 'ok', 200
+    global manychat
+    manychat.get_manychat_data()
+    admin = Admin(admin_id)
+    admin.get_admin_data()
+    user = Subscriber(manychat.manychat_data['user_id'])
+    user.get_manychat_data()
+    user.get_db_data()
 
+    if method == 'cabinet':
+        functions.subscriber_cabinet(user)
+    elif method == 'get_tasks':
+        functions.get_tasks(user)
+    elif method == 'get_coupon':
+        functions.get_coupon(user)
+    elif method == 'add_admin':
+        function.add_admin(user_id, data)
+    manychat.set_values()
+    return 'ok', 200
