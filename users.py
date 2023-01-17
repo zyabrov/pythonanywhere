@@ -1,8 +1,8 @@
 import config
-import db as db
 from datetime import datetime
 import functions
 import db_functions
+from flask import request
 
 
 class User:
@@ -103,6 +103,8 @@ class Admin(User):
         self.admin_data = None
         self.table = config.AdminsTable().table
         self.admin_table_cols = config.AdminsTable().cols
+        self.subscribers_table = f"subscribers_{self.admin_id}"
+        self.subscribers_table_cols = ['user_id', 'tg_id', 'tg_username', 'manychat_instagram', 'instagram_username', 'finished_tasks', 'active_tasks']
         self.products = None
         self.points_following = None
         self.points_comment = None
@@ -146,19 +148,129 @@ class Admin(User):
             self.last_payment_date = str(datetime.now())  # пізніше змінити
             self.end_date = functions.add_days(self.start_date, 30)
             self.status = 'active'
-            self.values = [self.admin_id, self.status, self.manychat_api, self.start_date, self.last_payment_date, self.end_date, self.coupons, self.activated_coupons, self.points_following, self.points_comment, self.points_stories, self.bot_token, self.manychat_id, self.product_id, self.template_installed]
             print(self.values)
             db_functions.InsertRaw(self.table, self.values)
             # change is admin in users table
             db_functions.UpdateValue(User().table, 'id', self.user_id, 'is_admin', True)
             # create coupons table
             db_functions.CreateTable(self.coupons_table, self.coupons_table_cols)
+            # create users table
+            db_functions.CreateTable(self.subscribers_table, self.subscribers_table_cols)
             return True
         else:
             return False
 
     def update_admin_settings(self, parameter, value):
         db_functions.UpdateValue(self.table, 'id', int(self.admin_id), parameter, value)
+
+
+    def db_add_active_coupon(self, coupon_id, subscriber_id, coupon_enddate):
+        values = [coupon_id, subscriber_id, coupon_enddate]
+        db_functions.InsertRaw(self.coupons_table, values)
+
+
+class Subscriber:
+    def __init__(self, manychat_id) -> None:
+        self.manychat_id = manychat_id
+        self.admin_id = None
+        self.manychat_data = None
+        self.bonuses_quantity = None
+        self.active_coupons = None
+        self.active_coupons_checked = dict()
+        self.points = None
+        self.coupons_active_string = None
+        self.available_tasks = []
+        self.finished_tasks = []
+        self.available_tasks_quantity = None
+        self.available_tasks_string = None
+        self.coupon_to_get = None
+        self.coupon_to_get_name = None
+        self.coupon_to_get_desc = None
+        self.coupon_to_get_enddate = None
+        self.coupon_to_get_id = None
+        self.table = None
+        self.table_cols = None
+        self.table_values = [self.manychat_id, 0, None, 0, None]
+        self.finished_tasks = []
+
+    
+    def get_manychat_data(self):
+        self.manychat_data = request.get_json()
+        self.manychat_id = self.manychat_data['user_id']
+
+    
+    def get_db_data(self, admin):
+        self.table = admin.subscribers_table
+        query = db_functions.GetRaw(self.table, 'manychat_id', self.manychat_id)
+        self.db_data = query.data
+        if self.db_data is not None:
+            self.bonuses_quantity = int(self.db_data['bonuses_quantity'])
+            self.active_coupons = self.db_data['active_coupons']
+            self.points = int(self.db_data['points'])
+            self.available_tasks = self.db_data['available_tasks']
+            self.finished_tasks = self.db_data['finished_tasks']
+        else:
+            self.db_add_user(self)
+        if self.active_coupons is None:
+            self.active_coupons = 'Немає активних купонів'
+        else:
+            # Перевіряємо, чи не вийшов термін дії кожного купону, формуємо новий список активних купонів
+            self.check_active_coupons()
+            # перетворюємо список на string для передачі в Manychat
+            self.active_coupons_string()
+        
+
+    def check_active_coupons(self):
+        current_time = self.manychat_data['last_seen']
+        for coupon in self.active_coupons:
+            coupon_endtime = coupon['coupon_endtime']
+            if current_time < coupon_endtime:
+                self.active_coupons_checked.append(coupon)
+
+
+    def active_coupons_string(self):
+        for coupon in self.active_coupons_checked:
+            coupon_string = f"<b>{coupon['coupon_name']}</b>, діє до {coupon['coupon_endtime']}"
+            if self.coupons_active_string is None:
+                self.coupons_active_string = coupon_string
+            else:
+                self.coupons_active_string = self.coupons_active_string + "\n" + coupon_string
+            return self.coupons_active_string
+
+            
+    def db_add_user(self):
+        db_functions.InsertRaw(self.table, self.table_values)
+    
+    def db_update_user(self, parameter, value):
+        db_functions.UpdateValue(self.table, 'user_id', int(self.user_id), parameter, value)
+
+    def get_coupon_to_get_data(self, coupon_name):
+        print(self.admin.coupons[f'{coupon_name}'])
+        self.coupon_to_get_data = self.admin.coupons[f'{coupon_name}']
+        print(self.current_coupon_data)
+        self.coupon_to_get_desc = self.coupon_to_get_data['coupon_desc']
+        self.coupon_to_get_cost = self.coupon_to_get_data['coupon_cost']
+        self.coupon_to_get_time = self.coupon_to_get_data['time']
+        return self.coupon_to_get_data
+
+    def set_coupon_to_get(self):
+        self.coupon_to_get = {
+            'coupon_id': self.coupon_to_get_id, 
+            'coupon_name': self.coupon_to_get_name, 
+            'coupon_сost': self.coupon_to_get_cost, 
+            'coupon_desc': self.coupon_to_get_desc, 
+            'coupon_enddate': self.coupon_to_get_enddate
+            }
+        self.active_coupons_checked.append(self.coupon_to_get)
+        self.db_update_user('active_coupons', self.active_coupons_checked)
+        self.admin.db_add_active_coupon(self.coupon_to_get_id, self.user_id, self.coupon_to_get_enddate)
+
+    def get_active_tasks(self):
+        self.available_tasks = []
+        for task in self.admin.tasks:
+            if task not in self.finished_tasks:
+                self.available_tasks.append(task)
+        return self.available_tasks
 
 
 class Product(Admin):
@@ -312,7 +424,6 @@ class Coupons:
 
 class AdminBot:
     def __init__(self):
-        super().__init__()
         self.bot_mainadmin = None
         self.bot_username= None
         self.bot_url = None
@@ -339,4 +450,121 @@ class AdminsList:
             admin_id = admin_data[0]
             self.admins_id.append(admin_id)
             self.admins_id_string.__add__(admin_id + '\n')
+
+
+
+
+class Manychat:
+    def __init__(self, manychat_token) -> None:
+        self.manychat_token = manychat_token
+        self.manychat_api_url = 'https://' # get from manychat api docs
+        self.manychat_headers = '' # get from manychat api docs
+        self.user_id = None
+        self.fields_to_change = None
+        self.message = None
+        self.url = None
+        self.data = None
+        self.status = None
+        self.manychat_data = None
+
+    def get_manychat_data(self):
+        self.manychat_data = request.get_json()
+        self.manychat_id = self.manychat_data['user_id']
+
+
+    def get_bot_data(self):
+        admin_id = db_functions.GetRaw()
+        admin_id
+        self.table = table
+        query = db_functions.GetRaw(self.table, 'manychat_id', self.manychat_id)
+        self.db_data = query.data
+                
+
+    def set_values(self, user_id, fields_to_change, message=None):
+        # The number of custom fields is limited to 20 for one request.
+        # Use field_id OR field_name to specify the field.
+        self.user_id = user_id
+        self.fields_to_change = fields_to_change
+        self.message = message
+        self.url = f"{self.manychat_api_url}/setCustomFields"
+        self.data = {
+        'subscriber_id': self.user_id,
+        'fields': self.fields_to_change   
+        }
+        req_post = requests.post(self.url, json=self.data, headers=self.manychat_headers)
+        print("manychat request: ", req_post.content, req_post.status_code, req_post.headers.items())
+        if req_post.status_code == 200: 
+        self.status = 'ok'
+        else:
+        self.status = 'error'
+        response = {
+        'status': self.status,
+        'message': self.message,
+        'fields_to_change': self.fields_to_change
+        }
+        self.fields_to_change = None
+        return response
+
+
+    def manychat_sendflow(subscriber_id, flow_ns, api_key):
+        data = {
+            "subscriber_id": subscriber_id,
+            "flow_ns": flow_ns
+        }
+        url = config.manychat_api_url+config.manychat_sendFlow
+        req_post = requests.post(url, json=data, headers=config.manychat_headers)
+        print("manychat request: ", req_post.content, req_post.status_code, req_post.headers.items())
+        return req_post
+
+
+    def manychat_sendmessage_resp(text, buttons=None, actions=None, quick_replies=None):
+    data = {
+        "tag": "ACCOUNT UPDATE",
+        "version": "v2",
+        "content": {
+            "messages": [
+            {
+                "type": "text",
+                "text": text,
+                "buttons": buttons
+            }],
+        "actions": actions,
+        "quick_replies": quick_replies
+        }
+    }
+    return make_response(data)
+
+
+    def manychat_sendmessage(subscriber_id, text, buttons=None, actions=None, quick_replies=None):
+    url = config.manychat_api_url+config.manychat_sendContentByUserRef
+    headers = {
+        'Authorization': 'Bearer ' + config.manychat_api_key,
+        'Content-Type': 'application/json'
+    }
+    data = {
+        "version": "v2",
+        "content": {
+            "messages": [
+                {
+                    "type": "text",
+                    "text": text,
+                    "buttons": buttons
+                    }],
+        "actions": actions,
+        "quick_replies": quick_replies
+
+    }
+    }
+    json = {
+        "user_ref": int(subscriber_id),
+        "data": data
+        }  
+    print(json)
+    req_post = requests.post(url, json=json, headers=headers)
+    return req_post
+
+
+
+
+
 

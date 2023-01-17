@@ -73,7 +73,7 @@ def show_all():
     con.close()
     print(data)
     return data
-    
+
   
 def get_raw(col_to_find,value):
     print("value to find:", value)
@@ -138,3 +138,95 @@ def delete_db_data(db_table):
     con.close()
     print(cur.rowcount, "record(s) deleted")
     return f'{cur.rowcount} record(s) deleted'
+
+
+import sqlite3
+
+DB_PATH = '../db/loyaltybots.db'
+
+
+class Query:
+    def __init__(self, table):
+        self.query_string = None
+        self.query_values = None
+        self.data = None
+        self.method = None
+        self.fetch = None
+        self.table = table
+
+    def execute(self):
+        with sqlite3.connect(DB_PATH) as db:
+            cursor = db.cursor()
+            if self.method == 'create':
+                cursor.execute(self.query_string)
+            elif isinstance(self.query_values, list):
+                cursor.execute(self.query_string, self.query_values)
+            else:
+                cursor.execute(self.query_string, (self.query_values, ))
+            if self.method == 'get':
+                if self.fetch == 'one':
+                    data = cursor.fetchone()
+                elif self.fetch == 'all':
+                    data = cursor.fetchall()
+                if data is not None:
+                    desc = cursor.description
+                    names = [description[0] for description in desc]
+                    self.data = dict(zip(names, data))
+                else:
+                    self.data = None
+                return self.data
+            elif self.method == ['insert', 'update', 'create']:
+                db.commit()
+
+
+
+class GetRaw(Query):
+    def __init__(self, table, col, value):
+        super().__init__(table)
+        self.query_string = f"SELECT * FROM {self.table} WHERE {col} = ?"
+        self.query_values = value
+        self.method = 'get'
+        self.fetch = 'one'
+        self.data = self.execute()
+
+
+class InsertRaw(Query):
+    def __init__(self, table, values):
+        super().__init__(table)
+        values_string = ', '.join('?' * len(values))
+        self.query_string = f'INSERT INTO {self.table} VALUES (%s);' % values_string
+        self.query_values = values
+        self.method = 'insert'
+        self.execute()
+
+
+class UpdateValue(Query):
+    def __init__(self, table, id_col, id_col_value, col_to_change, new_value):
+        super().__init__(table)
+        self.query_values = [new_value, id_col_value]
+        self.query_string = f"UPDATE {self.table} set {col_to_change} = ? WHERE {id_col} = ?"
+        self.method = 'update'
+        self.execute()
+
+
+class UpdateRaw(Query):
+    def __init__(self, table, id_col, id_col_value, values):
+        super().__init__(table)
+        values_string = ', '.join('?' * len(values))
+        self.query_values = values, id_col_value
+        self.query_string = f"UPDATE {self.table} set * = (%s) WHERE {id_col} = ?" % values_string
+        self.method = 'update'
+        self.execute()
+
+
+class GetAll(Query):
+    pass
+
+
+class CreateTable(Query):
+    def __init__(self, table, cols):
+        super().__init__(table)
+        self.query_string = f'CREATE TABLE {table} (%s);' % cols
+        self.method = 'create'
+        self.execute()
+

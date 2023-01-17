@@ -5,7 +5,8 @@ import requests
 from random import randint
 import config
 import db_functions as db
-from users import User, Admin
+from users import User, Admin, Subscriber, Manychat
+
 
 def add_days(start_date, time_delta):
   start_date = datetime.fromisoformat(start_date)
@@ -67,8 +68,48 @@ def add_admin(admin_id, data):
   return manychat_response(admin_id, status, fields_to_change, response_message)
   
 
-def get_coupon(subscriber_id, data):
-  fields_to_change = []
+def get_coupon(user):
+  """
+  Отримати значення з Manychat:
+    ID користувача
+    Купон на отримання
+  Отримати значення з бази Адмінбота (по назві купону):
+    Опис купону
+    Термін дії купону на отримання (днів)
+    Вартість купону на отримання
+  Отримати значення з бази Підписників:
+    Діючі купони (для особистого кабінету)
+    Кількість балів
+  Порахувати:
+    Дата, до якої діє купон = Поточна дата + Термін дії купону
+    Нова Кількість балів = Кількість балів - вартість купону
+    ID отриманого купону
+  Записати у базу Підписника:
+    Нова Кількість балів
+    Діючі купони
+  Записати у базу Купонів (чи може у базу Підписнкика? Чи і туди, і туди): # user.active_coupons = [{'coupon_id': 234234, 'coupon_name': 'За підписку', 'coupon_сost': 200, 'coupon_desc': 'sdfsdfasf', 'coupon_endtime': '12.02.2023'}]
+    ID отриманого купону
+    ID користувача, який отримав
+    Дата, до якої діє
+  Передати значення полів у Manychat:
+    # Діючі купони (для особистого кабінету)
+    # Дата, до якої діє купон
+    Термін дії купону на отримання (днів)
+    Нова кількість балів
+  """
+  coupon_name = user.manychat_data['custom_fields']['Купон на отримання'] # {'coupon_name', 'coupon_cost', 'coupon_time'}
+  user.get_coupon_to_get_data(coupon_name)
+  user.coupon_to_get_enddate = add_days(user.manychat_data['last_seen'], user.coupon_to_get_time)
+  user.points = int(user.points) - int(user.coupon_to_get_cost)
+  user.coupon_to_get_id = integer_generation()
+  user.set_coupon_to_get()
+
+
+
+def update_manychat_values(manychat_apikey):
+
+
+  """fields_to_change = []
   points = data['custom_fields']['ПЛ - Всього балів']
   діючі_купони = (data['custom_fields']['Діючі купони (для особистого кабінету)'])
   coupon_data = data['custom_fields']['Купон на отримання']
@@ -109,37 +150,45 @@ def get_coupon(subscriber_id, data):
   r = manychat_setvalues(subscriber_id, fields_to_change)
   print (r)
   return r  
+  """
 
 
-def user_cabinet(user, manychat_data, admin):
-      # Встановити нові значення:
+def subscriber_cabinet(user):
+      # Отримати значення з бази данних підписників адміна:
         # Кількість отриманих бонусів
         # Діючі купони (для особистого кабінету)
         # Всього балів
-        # Кількість отриманих бонусів
-  fields_to_change = []
-  coupons = admin.coupons
-  if coupons is not None:
-    coupons_active_string = None
-    for coupon in coupons:
+      # Передати значення в поля Manychat
+  fields_to_change = [
+    {'Кількість отриманих бонусів': user.bonuses_quantity},
+    {'Діючі купони (для особистого кабінету)': user.coupons_active_string},
+    {'Всього балів': user.points}
+  ]
+  user.set_manychat_values(fields_to_change)
+
+
+
+def get_tasks(user):
+    # Отримати доступні завдання з бази: всі завдання - виконані (list)
+    # Передати значення полів у Manychat (string):
+      # Доступні завдання (кількість)
+      # Доступне завдання 1
+      # Доступне завдання 2
+      # ...
+      # Доступне завдання i
+      # ПЛ - Доступні бонуси (масив)
+    user.get_active_tasks
+    fields_to_change = [
+    {'Доступні завдання (кількість)': user.bonuses_quantity},
+    {'ПЛ - Доступні бонуси (масив)': user.coupons_active_string}
+    ]
+    for active_task in user.active_tasks:
       i += 1
-      name = f'Діючий купон {i+1}'
-      current_time = manychat_data['last_seen']
-      end_time = manychat_data['custom_fields'][name + ' (дата до)']
-      if current_time < end_time:
-          if coupons_active_string == None:
-              coupons_active_string = coupon
-          else:
-              coupons_active_string = coupons_active_string + "\n" + coupon
-    fields_to_change = add_field_to_change('Діючі купони (для особистого кабінету)', coupons_active_string)  
-  else: 
-      fields_to_change = add_field_to_change('Діючі купони (для особистого кабінету)', "➖")     
-  r = manychat_setvalues(subscriber_id, fields_to_change)
-  return r   
+      fields_to_change.append({f'Доступне завдання {i}': active_task})
+    user.set_manychat_values(fields_to_change)
 
 
-def get_tasks(subscriber_id, data):
-    fields_to_change = []
+    """fields_to_change = []
     available_tasks = []
     all_tasks = config.tasks_list
     finished_tasks_string = data['custom_fields']['ПЛ - Отримані бонуси']
@@ -174,90 +223,4 @@ def add_field_to_change(field_name, field_value):
 #-------------  
 #manychat_functions
 #-------------  
-
-def manychat_setvalues(subscriber_id, fields_to_change):
-#The number of custom fields is limited to 20 for one request.
-# Use field_id OR field_name to specify the field.
-    url = config.manychat_api_url+config.manychat_setCustomFields_url
-    data = {
-      'subscriber_id': subscriber_id,
-      'fields': fields_to_change   
-    }
-    req_post = requests.post(url, json=data, headers=config.manychat_headers)
-    print("manychat request: ", req_post.content, req_post.status_code, req_post.headers.items())
-    return req_post
-
-
-def manychat_response(subscriber_id, status, fields_to_change=None, message=None): 
-    fields_to_change = add_field_to_change('response_status', status)
-    fields_to_change = add_field_to_change('response_message', message)
-    print(fields_to_change)
-    mc_setvalues_res = manychat_setvalues(subscriber_id, fields_to_change)
-    print('mc_setvalues_res:', mc_setvalues_res)
-    if status != 'error' and mc_setvalues_res.status_code == 200: 
-        status = 'ok'
-    response = {
-      'status': status,
-      'message': message,
-      'fields_to_change': fields_to_change
-    }
-    fields_to_change = None
-    return response
-  
-
-def manychat_sendflow(subscriber_id, flow_ns, api_key):
-    data = {
-        "subscriber_id": subscriber_id,
-        "flow_ns": flow_ns
-    }
-    url = config.manychat_api_url+config.manychat_sendFlow
-    req_post = requests.post(url, json=data, headers=config.manychat_headers)
-    print("manychat request: ", req_post.content, req_post.status_code, req_post.headers.items())
-    return req_post
-
-
-def manychat_sendmessage_resp(text, buttons=None, actions=None, quick_replies=None):
-  data = {
-      "tag": "ACCOUNT UPDATE",
-      "version": "v2",
-      "content": {
-        "messages": [
-          {
-            "type": "text",
-            "text": text,
-            "buttons": buttons
-          }],
-      "actions": actions,
-      "quick_replies": quick_replies
-    }
-  }
-  return make_response(data)
-
-
-def manychat_sendmessage(subscriber_id, text, buttons=None, actions=None, quick_replies=None):
-  url = config.manychat_api_url+config.manychat_sendContentByUserRef
-  headers = {
-      'Authorization': 'Bearer ' + config.manychat_api_key,
-      'Content-Type': 'application/json'
-  }
-  data = {
-      "version": "v2",
-      "content": {
-          "messages": [
-              {
-                  "type": "text",
-                  "text": text,
-                  "buttons": buttons
-                  }],
-      "actions": actions,
-      "quick_replies": quick_replies
-
-  }
-  }
-  json = {
-      "user_ref": int(subscriber_id),
-      "data": data
-      }  
-  print(json)
-  req_post = requests.post(url, json=json, headers=headers)
-  return req_post
+"""
