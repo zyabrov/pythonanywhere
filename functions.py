@@ -1,9 +1,7 @@
 from datetime import datetime, timedelta
 from flask import make_response
 from datetime import datetime, date, timedelta
-import requests
 from random import randint
-import config
 import db_functions as db
 from users import User, Admin, Subscriber, Manychat
 
@@ -68,7 +66,8 @@ def add_admin(admin_id, data):
   return manychat_response(admin_id, status, fields_to_change, response_message)
   
 
-def get_coupon(user):
+def get_coupon(user, admin):
+  
   """
   Отримати значення з Manychat:
     ID користувача
@@ -97,13 +96,14 @@ def get_coupon(user):
     Термін дії купону на отримання (днів)
     Нова кількість балів
   """
-  coupon_name = user.manychat_data['custom_fields']['Купон на отримання'] # {'coupon_name', 'coupon_cost', 'coupon_time'}
-  user.get_coupon_to_get_data(coupon_name)
+  user.coupon_to_get_name = user.manychat_data['custom_fields']['Купон на отримання']
+  user.get_coupon_to_get_data(user.coupon_to_get_name, admin)
   user.coupon_to_get_enddate = add_days(user.manychat_data['last_seen'], user.coupon_to_get_time)
   user.points = int(user.points) - int(user.coupon_to_get_cost)
   user.coupon_to_get_id = integer_generation()
   user.set_coupon_to_get()
-
+  admin.db_add_active_coupon(admin.coupon_to_get_id, admin.user_id, admin.coupon_to_get_enddate)
+  return 'ok'
 
 
 def update_manychat_values(manychat_apikey):
@@ -164,8 +164,7 @@ def subscriber_cabinet(user):
     {'Діючі купони (для особистого кабінету)': user.coupons_active_string},
     {'Всього балів': user.points}
   ]
-  user.set_manychat_values(fields_to_change)
-
+  return fields_to_change
 
 
 def get_tasks(user):
@@ -185,8 +184,7 @@ def get_tasks(user):
     for active_task in user.active_tasks:
       i += 1
       fields_to_change.append({f'Доступне завдання {i}': active_task})
-    user.set_manychat_values(fields_to_change)
-
+    return fields_to_change
 
     """fields_to_change = []
     available_tasks = []

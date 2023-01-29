@@ -3,6 +3,7 @@ from datetime import datetime
 import functions
 import db_functions
 from flask import request
+import requests
 
 
 class User:
@@ -116,8 +117,8 @@ class Admin(User):
         self.last_message = None
 
 
-    def get_admin_data(self):
-        query = db_functions.GetRaw(self.table, 'id', self.user_id)
+    def get_admin_data(self, param, value):
+        query = db_functions.GetRaw(self.table, param, value)
         self.admin_data = query.data
         if self.admin_data is not None:
             self.status = self.admin_data['status']
@@ -185,6 +186,7 @@ class Subscriber:
         self.available_tasks_string = None
         self.coupon_to_get = None
         self.coupon_to_get_name = None
+        self.coupon_to_get_cost = None
         self.coupon_to_get_desc = None
         self.coupon_to_get_enddate = None
         self.coupon_to_get_id = None
@@ -193,14 +195,9 @@ class Subscriber:
         self.table_values = [self.manychat_id, 0, None, 0, None]
         self.finished_tasks = []
 
-    
-    def get_manychat_data(self):
-        self.manychat_data = request.get_json()
-        self.manychat_id = self.manychat_data['user_id']
 
-    
-    def get_db_data(self, admin):
-        self.table = admin.subscribers_table
+        
+    def get_db_data(self, table):
         query = db_functions.GetRaw(self.table, 'manychat_id', self.manychat_id)
         self.db_data = query.data
         if self.db_data is not None:
@@ -244,10 +241,8 @@ class Subscriber:
     def db_update_user(self, parameter, value):
         db_functions.UpdateValue(self.table, 'user_id', int(self.user_id), parameter, value)
 
-    def get_coupon_to_get_data(self, coupon_name):
-        print(self.admin.coupons[f'{coupon_name}'])
-        self.coupon_to_get_data = self.admin.coupons[f'{coupon_name}']
-        print(self.current_coupon_data)
+    def get_coupon_to_get_data(self, admin):
+        self.coupon_to_get_data = admin.coupons[f'{self.coupon_name}']
         self.coupon_to_get_desc = self.coupon_to_get_data['coupon_desc']
         self.coupon_to_get_cost = self.coupon_to_get_data['coupon_cost']
         self.coupon_to_get_time = self.coupon_to_get_data['time']
@@ -263,7 +258,6 @@ class Subscriber:
             }
         self.active_coupons_checked.append(self.coupon_to_get)
         self.db_update_user('active_coupons', self.active_coupons_checked)
-        self.admin.db_add_active_coupon(self.coupon_to_get_id, self.user_id, self.coupon_to_get_enddate)
 
     def get_active_tasks(self):
         self.available_tasks = []
@@ -271,6 +265,8 @@ class Subscriber:
             if task not in self.finished_tasks:
                 self.available_tasks.append(task)
         return self.available_tasks
+
+
 
 
 class Product(Admin):
@@ -382,7 +378,7 @@ class Coupon:
         if self.coupon_status == 'active':
             self.coupon_status = 'activated'
             self.activate_date = config.current_time
-            self.action = db.UpdateRaw(self.user_id, 'id', self.coupon_id, self.coupon_params)
+            self.action = db_functions.UpdateRaw(self.user_id, 'id', self.coupon_id, self.coupon_params)
             self.query.execute()
 
     def admin_coupon_data(self):
@@ -439,7 +435,7 @@ class AdminsList:
         self.admins_id_string = 'All admins id \n\n'
 
     def get_all_data(self):
-        all_data = db.get_admins()
+        all_data = db_functions.get_admins()
         for admin_data in all_data:
             self.admins_list.append(admin_data)
             self.admins_list_string = self.admins_list_string.__add__(f'{admin_data} \n\n')
@@ -458,7 +454,7 @@ class Manychat:
     def __init__(self, manychat_token) -> None:
         self.manychat_token = manychat_token
         self.manychat_api_url = 'https://' # get from manychat api docs
-        self.manychat_headers = '' # get from manychat api docs
+        self.manychat_headers = f'Autorization: Bearer {self.manychat_token}; Application: Json/' # get from manychat api docs
         self.user_id = None
         self.fields_to_change = None
         self.message = None
@@ -469,22 +465,11 @@ class Manychat:
 
     def get_manychat_data(self):
         self.manychat_data = request.get_json()
-        self.manychat_id = self.manychat_data['user_id']
+        self.manychat_id = self.manychat_data['user_id']          
 
-
-    def get_bot_data(self):
-        admin_id = db_functions.GetRaw()
-        admin_id
-        self.table = table
-        query = db_functions.GetRaw(self.table, 'manychat_id', self.manychat_id)
-        self.db_data = query.data
-                
-
-    def set_values(self, user_id, fields_to_change, message=None):
-        # The number of custom fields is limited to 20 for one request.
+    def set_values(self, message=None):
+        # The number of custom               fields is limited to 20 for one request.
         # Use field_id OR field_name to specify the field.
-        self.user_id = user_id
-        self.fields_to_change = fields_to_change
         self.message = message
         self.url = f"{self.manychat_api_url}/setCustomFields"
         self.data = {
@@ -494,9 +479,9 @@ class Manychat:
         req_post = requests.post(self.url, json=self.data, headers=self.manychat_headers)
         print("manychat request: ", req_post.content, req_post.status_code, req_post.headers.items())
         if req_post.status_code == 200: 
-        self.status = 'ok'
+            self.status = 'ok'
         else:
-        self.status = 'error'
+            self.status = 'error'
         response = {
         'status': self.status,
         'message': self.message,
@@ -505,7 +490,7 @@ class Manychat:
         self.fields_to_change = None
         return response
 
-
+"""
     def manychat_sendflow(subscriber_id, flow_ns, api_key):
         data = {
             "subscriber_id": subscriber_id,
@@ -564,7 +549,7 @@ class Manychat:
     return req_post
 
 
-
+"""
 
 
 

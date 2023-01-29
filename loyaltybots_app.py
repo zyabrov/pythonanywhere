@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 import telebot
 from credentials import bot_token, webhook_url
 import time
@@ -13,7 +13,6 @@ import db_functions
 
 TOKEN = bot_token
 bot = telebot.TeleBot(TOKEN, threaded=False)
-manychat = Manychat()
 
 app = Flask(__name__)
 
@@ -350,22 +349,27 @@ def webhook():
 
 
 @app.route('/manychat/<manychat_token>/<method>', methods=['POST'])
-def manychat(manychat_token, method):
-    global manychat
+def manychat_requence(manychat_token, method):
+    manychat = Manychat(manychat_token)
     manychat.get_manychat_data()
-    admin = Admin(admin_id)
-    admin.get_admin_data()
-    user = Subscriber(manychat.manychat_data['user_id'])
-    user.get_manychat_data()
-    user.get_db_data()
+    query = db_functions.GetRaw(config.db_admintable, 'manychat_api', manychat_token)
+    admin = Admin(query.data['id'])
+    admin.get_admin_data('id', admin.admin_id)
+    user = Subscriber(manychat.user_id)
+    user.get_db_data(admin.subscribers_table)
+    user.manychat_data = manychat.manychat_data
 
     if method == 'cabinet':
-        functions.subscriber_cabinet(user)
+        manychat.fields_to_change = functions.subscriber_cabinet(user)
+        manychat.message = 'Дані отримано'
     elif method == 'get_tasks':
-        functions.get_tasks(user)
+        manychat.fields_to_change = functions.get_tasks(user)
+        manychat.message = ''
     elif method == 'get_coupon':
-        functions.get_coupon(user)
+        functions.get_coupon(user, admin)
+        manychat.message = 'Купон отримано'
     elif method == 'add_admin':
-        function.add_admin(user_id, data)
-    manychat.set_values()
-    return 'ok', 200
+        manychat.fields_to_change = function.add_admin(user_id, data)
+    response = manychat.set_values()
+    print(response)
+    return response

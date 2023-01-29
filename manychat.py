@@ -6,4 +6,4 @@ class Manychat(User):
         self.manychat_id = manychat_id
 
     def send_message(self):
-
+        pass
